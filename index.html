@@ -1,192 +1,326 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Estimasi Angin LSM</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estimasi Angin - LSM</title>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        /* CSS untuk meniru gaya Streamlit */
+        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; color: #31333F; }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 300px;
+            background-color: #f0f2f6;
+            padding: 2rem 1rem;
+            box-sizing: border-box;
+            border-right: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        /* Main Content */
+        .main { flex: 1; padding: 2rem; overflow-y: auto; }
+        
+        /* Headings & Text */
+        h1 { margin-top: 0; font-size: 2.2rem; }
+        h2 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+        .subtitle { color: #666; margin-bottom: 2rem; }
+        
+        /* Input Controls */
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="range"] { width: 100%; }
+        button {
+            background-color: #ff4b4b; color: white; border: none;
+            padding: 10px 20px; border-radius: 5px; cursor: pointer;
+            font-weight: bold; width: 100%; margin-top: 10px;
+        }
+        button:hover { background-color: #ff3333; }
 
-<script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+        /* Metrics Columns */
+        .metrics-container { display: flex; gap: 20px; margin-bottom: 20px; }
+        .metric-box {
+            flex: 1; padding: 15px; border-radius: 5px;
+            background: #fff; border: 1px solid #e0e0e0; text-align: center;
+        }
+        .metric-label { font-size: 0.9rem; color: #666; }
+        .metric-value { font-size: 1.5rem; font-weight: bold; color: #000; }
 
-<style>
-body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; }
-.sidebar {
-    width: 300px; background: #f0f2f6; padding: 20px;
-    border-right: 1px solid #ddd;
-}
-.main { flex: 1; padding: 20px; overflow-y: auto; }
-button {
-    width: 100%; padding: 10px;
-    background: #ff4b4b; color: white;
-    border: none; border-radius: 5px;
-    font-weight: bold; cursor: pointer;
-}
-.metric-box {
-    border: 1px solid #ddd; padding: 10px;
-    border-radius: 5px; text-align: center;
-}
-.metrics-container { display: flex; gap: 10px; margin-bottom: 20px; }
-table { width: 100%; border-collapse: collapse; }
-th, td { border: 1px solid #ddd; padding: 6px; font-size: 0.85rem; }
-th { background: #f2f2f2; }
-</style>
+        /* Tabs System */
+        .tab-buttons { border-bottom: 1px solid #ccc; margin-top: 20px; }
+        .tab-btn {
+            background: none; border: none; padding: 10px 20px;
+            cursor: pointer; font-size: 1rem; border-bottom: 3px solid transparent;
+            color: #31333F;
+        }
+        .tab-btn.active { border-bottom: 3px solid #ff4b4b; font-weight: bold; }
+        .tab-content { display: none; padding-top: 20px; }
+        .tab-content.active { display: block; }
+
+        /* Table */
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
 </head>
-
 <body>
 
-<!-- SIDEBAR -->
-<div class="sidebar">
-    <h3>Pengaturan</h3>
+    <div class="sidebar">
+        <h2>Pengaturan Data</h2>
+        
+        <div>
+            <label for="jmlSensor">Jumlah Sensor: <span id="valJml">5</span></label>
+            <input type="range" id="jmlSensor" min="3" max="5" value="5">
+        </div>
 
-    <label>Jumlah Sensor: <span id="valJml">5</span></label>
-    <input type="range" id="jmlSensor" min="3" max="5" value="5">
+        <div>
+            <label>Kisaran Kecepatan (m/s):</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="number" id="minSpeed" value="3.0" step="0.1" style="width: 60px;">
+                <span>s/d</span>
+                <input type="number" id="maxSpeed" value="8.0" step="0.1" style="width: 60px;">
+            </div>
+        </div>
 
-    <br><br>
-    <label>Kecepatan (m/s)</label>
-    <input type="number" id="minSpeed" value="3" step="0.1"> s/d
-    <input type="number" id="maxSpeed" value="8" step="0.1">
+        <button onclick="jalankanEstimasi()">🚀 Jalankan Estimasi LSM</button>
+        
+        <div style="margin-top: auto; font-size: 0.8rem; color: #666;">
+            <p><strong>Info:</strong> Parameter disesuaikan untuk simulasi browser.</p>
+        </div>
+    </div>
 
-    <br><br>
-    <button onclick="jalankanEstimasi()">🚀 Jalankan Estimasi</button>
-</div>
+    <div class="main">
+        <h1>🌬 Estimasi Angin: Tanjungpinang & Batam</h1>
+        <div class="subtitle">*Metode:* Least Squares | *Data:* Sensor IoT Simulasi | *Penerapan:* GIS</div>
 
-<!-- MAIN -->
-<div class="main">
-<h1>🌬 Estimasi Arah Angin (LSM)</h1>
-<p>Tanjungpinang & Batam – Data Sensor Simulasi</p>
+        <div id="initialState">
+            <div style="background-color: #e8f4f8; padding: 15px; border-radius: 5px; border-left: 5px solid #00aaff;">
+                ℹ <strong>Silakan klik tombol "Jalankan Estimasi LSM" di sidebar.</strong>
+            </div>
+            <br>
+            <p><strong>Data yang digunakan</strong> adalah data sensor <strong>simulasi</strong> dengan lokasi nyata di:</p>
+            <ul>
+                <li><strong>Tanjungpinang</strong>: Stasiun Meteorologi Raja Haji Fisabilillah, Stasiun Maritim, Bandara.</li>
+                <li><strong>Batam</strong>: Stasiun Meteorologi Hang Nadim, Pelabuhan Batam Center.</li>
+            </ul>
+        </div>
 
-<div id="result" style="display:none;">
+        <div id="resultContainer" style="display: none;">
+            <div style="background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
+                ✅ Estimasi Berhasil
+            </div>
 
-<div class="metrics-container">
-    <div class="metric-box"><b>Kecepatan</b><div id="resSpeed">0</div></div>
-    <div class="metric-box"><b>Arah</b><div id="resDir">0</div></div>
-    <div class="metric-box"><b>U</b><div id="resU">0</div></div>
-    <div class="metric-box"><b>V</b><div id="resV">0</div></div>
-</div>
+            <div class="metrics-container">
+                <div class="metric-box"><div class="metric-label">Kecepatan</div><div class="metric-value" id="resSpeed">0 m/s</div></div>
+                <div class="metric-box"><div class="metric-label">Arah</div><div class="metric-value" id="resDir">0°</div></div>
+                <div class="metric-box"><div class="metric-label">Komponen U</div><div class="metric-value" id="resU">0</div></div>
+                <div class="metric-box"><div class="metric-label">Komponen V</div><div class="metric-value" id="resV">0</div></div>
+            </div>
 
-<h3>🗺 Peta Sensor & Vektor Angin</h3>
-<div id="mapPlot" style="height:400px;"></div>
+            <h3>🗺 Peta Sebaran Sensor & Vektor Angin</h3>
+            <div id="mapPlot" style="width: 100%; height: 400px;"></div>
 
-<h3>📋 Data Sensor</h3>
-<table>
-<thead>
-<tr>
-<th>ID</th><th>Stasiun</th><th>Kota</th>
-<th>Lat</th><th>Lon</th>
-<th>Speed</th><th>Arah</th><th>U</th><th>V</th>
-</tr>
-</thead>
-<tbody id="dataTable"></tbody>
-</table>
+            <div class="tab-buttons">
+                <button class="tab-btn active" onclick="openTab('tab1')">📋 Tabel Data Sensor</button>
+                <button class="tab-btn" onclick="openTab('tab2')">📈 Analisis</button>
+            </div>
 
-</div>
-</div>
+            <div id="tab1" class="tab-content active">
+                <div style="overflow-x: auto;">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>ID Sensor</th><th>Stasiun</th><th>Kota</th>
+                                <th>Lat</th><th>Lon</th>
+                                <th>Kecepatan (m/s)</th><th>Arah (°)</th>
+                                <th>U (E-W)</th><th>V (N-S)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
 
-<script>
-/* ================= DATA STASIUN ================= */
-const data_stasiun = [
- {Nama:'Stasiun Meteorologi Raja Haji Fisabilillah', Kota:'Tanjungpinang', lat:0.918, lon:104.455},
- {Nama:'Stasiun Meteorologi Hang Nadim', Kota:'Batam', lat:1.121, lon:104.119},
- {Nama:'Stasiun Maritim Tanjungpinang', Kota:'Tanjungpinang', lat:0.927, lon:104.462},
- {Nama:'Pelabuhan Batam Center', Kota:'Batam', lat:1.131, lon:104.058},
- {Nama:'Bandara Raja Haji Fisabilillah', Kota:'Tanjungpinang', lat:0.922, lon:104.532}
-];
+            <div id="tab2" class="tab-content">
+                <div id="barChart" style="width: 100%; height: 400px;"></div>
+            </div>
+        </div>
+    </div>
 
-document.getElementById('jmlSensor').oninput = e =>
-    document.getElementById('valJml').innerText = e.target.value;
+    <script>
+        // --- 1. DATA STASIUN (Sama seperti Python) ---
+        const data_stasiun = [
+            {'Nama': 'Stasiun Meteorologi Raja Haji Fisabilillah', 'Kota': 'Tanjungpinang', 'lat': 0.918, 'lon': 104.455},
+            {'Nama': 'Stasiun Meteorologi Hang Nadim', 'Kota': 'Batam', 'lat': 1.121, 'lon': 104.119},
+            {'Nama': 'Stasiun Maritim Tanjungpinang', 'Kota': 'Tanjungpinang', 'lat': 0.927, 'lon': 104.462},
+            {'Nama': 'Pelabuhan Batam Center', 'Kota': 'Batam', 'lat': 1.131, 'lon': 104.058},
+            {'Nama': 'Bandara Raja Haji Fisabilillah', 'Kota': 'Tanjungpinang', 'lat': 0.922, 'lon': 104.532}
+        ];
 
-/* ================= GENERATE DATA ================= */
-function buat_data_sensor(jml, minS, maxS) {
- let data = [];
- for (let i = 0; i < jml; i++) {
-   let s = data_stasiun[i];
-   let spd = Math.random()*(maxS-minS)+minS;
-   let dir = Math.random()*360;
-   let rad = (90-dir)*Math.PI/180;
-   let u = spd*Math.cos(rad);
-   let v = spd*Math.sin(rad);
+        // Update Slider UI
+        document.getElementById('jmlSensor').addEventListener('input', function() {
+            document.getElementById('valJml').textContent = this.value;
+        });
 
-   data.push({
-     id:`S${String(i+1).padStart(2,'0')}`,
-     ...s,
-     spd:+spd.toFixed(2),
-     dir:+dir.toFixed(1),
-     u:+u.toFixed(3),
-     v:+v.toFixed(3)
-   });
- }
- return data;
-}
+        // --- 2. FUNGSI LOGIKA (Porting dari Python) ---
 
-/* ================= LSM ================= */
-function estimasi_lsm(d) {
- let u = d.reduce((a,b)=>a+b.u,0)/d.length;
- let v = d.reduce((a,b)=>a+b.v,0)/d.length;
- let spd = Math.sqrt(u*u+v*v);
- let dir = (90-Math.atan2(v,u)*180/Math.PI+360)%360;
- return {spd,dir,u,v};
-}
+        function buat_data_sensor(jml, stasiun, kecepatan_min, kecepatan_max) {
+            let data = [];
+            let limit = Math.min(jml, stasiun.length);
+            
+            for (let i = 0; i < limit; i++) {
+                let s = stasiun[i];
+                let kecepatan = Math.random() * (kecepatan_max - kecepatan_min) + kecepatan_min;
+                let arah = Math.random() * 360;
 
-/* ================= MAIN ================= */
-function jalankanEstimasi(){
- let jml = +jmlSensor.value;
- let minS = +minSpeed.value;
- let maxS = +maxSpeed.value;
+                let arah_rad = (90 - arah) * (Math.PI / 180);
+                let u = kecepatan * Math.cos(arah_rad);
+                let v = kecepatan * Math.sin(arah_rad);
 
- let data = buat_data_sensor(jml,minS,maxS);
- let h = estimasi_lsm(data);
+                data.push({
+                    'ID Sensor': `S${String(i+1).padStart(2, '0')}`,
+                    'Stasiun': s['Nama'],
+                    'Kota': s['Kota'],
+                    'Latitude': s['lat'],
+                    'Longitude': s['lon'],
+                    'Kecepatan': parseFloat(kecepatan.toFixed(2)),
+                    'Arah': parseFloat(arah.toFixed(1)),
+                    'U': parseFloat(u.toFixed(3)),
+                    'V': parseFloat(v.toFixed(3))
+                });
+            }
+            return data;
+        }
 
- document.getElementById('result').style.display='block';
- resSpeed.innerText = h.spd.toFixed(2)+' m/s';
- resDir.innerText = h.dir.toFixed(1)+'°';
- resU.innerText = h.u.toFixed(2);
- resV.innerText = h.v.toFixed(2);
+        function estimasi_lsm(df) {
+            let sumU = df.reduce((acc, curr) => acc + curr['U'], 0);
+            let sumV = df.reduce((acc, curr) => acc + curr['V'], 0);
+            
+            let u_mean = sumU / df.length;
+            let v_mean = sumV / df.length;
 
- renderMap(data);
- renderTable(data);
-}
+            let kecepatan = Math.sqrt(Math.pow(u_mean, 2) + Math.pow(v_mean, 2));
+            
+            let arah_rad = Math.atan2(v_mean, u_mean);
+            let arah_deg = arah_rad * (180 / Math.PI);
+            let arah = (90 - arah_deg) % 360;
+            if (arah < 0) arah += 360;
 
-/* ================= MAP ================= */
-function renderMap(data){
- let points = {
-   type:'scattermapbox',
-   lat:data.map(d=>d.lat),
-   lon:data.map(d=>d.lon),
-   mode:'markers',
-   marker:{size:14,color:data.map(d=>d.Kota=='Batam'?'blue':'red')},
-   text:data.map(d=>`${d.Nama}<br>${d.spd} m/s`),
- };
+            return { kecepatan, arah, u_mean, v_mean };
+        }
 
- let latA=[], lonA=[];
- data.forEach(d=>{
-   latA.push(d.lat, d.lat+d.v*0.05, null);
-   lonA.push(d.lon, d.lon+d.u*0.05, null);
- });
+        // --- 3. FUNGSI UTAMA (Main Execution) ---
+        function jalankanEstimasi() {
+            let jml = parseInt(document.getElementById('jmlSensor').value);
+            let minSpeed = parseFloat(document.getElementById('minSpeed').value);
+            let maxSpeed = parseFloat(document.getElementById('maxSpeed').value);
 
- let vector = {
-   type:'scattermapbox',
-   lat:latA, lon:lonA,
-   mode:'lines',
-   line:{width:3,color:'green'}
- };
+            let df_sensor = buat_data_sensor(jml, data_stasiun, minSpeed, maxSpeed);
+            let hasil = estimasi_lsm(df_sensor);
 
- Plotly.newPlot('mapPlot',[points,vector],{
-   mapbox:{style:'open-street-map',center:{lat:1.02,lon:104.3},zoom:8.5},
-   margin:{t:0,b:0,l:0,r:0}
- });
-}
+            document.getElementById('initialState').style.display = 'none';
+            document.getElementById('resultContainer').style.display = 'block';
 
-/* ================= TABLE ================= */
-function renderTable(data){
- let t='';
- data.forEach(d=>{
- t+=`<tr>
- <td>${d.id}</td><td>${d.Nama}</td><td>${d.Kota}</td>
- <td>${d.lat}</td><td>${d.lon}</td>
- <td>${d.spd}</td><td>${d.dir}</td>
- <td>${d.u}</td><td>${d.v}</td></tr>`;
- });
- dataTable.innerHTML=t;
-}
-</script>
+            document.getElementById('resSpeed').innerText = hasil.kecepatan.toFixed(2) + ' m/s';
+            document.getElementById('resDir').innerText = hasil.arah.toFixed(1) + '°';
+            document.getElementById('resU').innerText = hasil.u_mean.toFixed(2);
+            document.getElementById('resV').innerText = hasil.v_mean.toFixed(2);
+
+            renderMap(df_sensor);
+            renderTable(df_sensor);
+            renderChart(df_sensor);
+        }
+
+        // --- 4. VISUALISASI ---
+        
+        function renderMap(data) {
+            let lats = data.map(d => d.Latitude);
+            let lons = data.map(d => d.Longitude);
+            let hoverText = data.map(d => `${d.Stasiun}<br>Kecepatan: ${d.Kecepatan} m/s<br>Arah: ${d.Arah}°`);
+            
+            let colors = data.map(d => d.Kota === 'Tanjungpinang' ? 'red' : 'blue');
+
+            let trace = {
+                type: 'scattermapbox',
+                lat: lats,
+                lon: lons,
+                mode: 'markers',
+                marker: { size: 15, color: colors },
+                text: hoverText,
+                hoverinfo: 'text'
+            };
+
+            let layout = {
+                mapbox: {
+                    style: "open-street-map",
+                    center: { lat: 1.0, lon: 104.3 },
+                    zoom: 8.5
+                },
+                margin: { r: 0, t: 0, b: 0, l: 0 },
+                height: 400
+            };
+
+            Plotly.newPlot('mapPlot', [trace], layout);
+        }
+
+        function renderTable(data) {
+            let tbody = document.querySelector('#dataTable tbody');
+            tbody.innerHTML = '';
+            data.forEach(row => {
+                let tr = `<tr>
+                    <td>${row['ID Sensor']}</td>
+                    <td>${row['Stasiun']}</td>
+                    <td>${row['Kota']}</td>
+                    <td>${row['Latitude']}</td>
+                    <td>${row['Longitude']}</td>
+                    <td>${row['Kecepatan']}</td>
+                    <td>${row['Arah']}</td>
+                    <td>${row['U']}</td>
+                    <td>${row['V']}</td>
+                </tr>`;
+                tbody.innerHTML += tr;
+            });
+        }
+
+        function renderChart(data) {
+            let ids = data.map(d => d['ID Sensor']);
+            let us = data.map(d => d['U']);
+            let vs = data.map(d => d['V']);
+
+            let trace1 = {
+                x: ids, y: us, name: 'U (Timur-Barat)', type: 'bar', marker: {color: 'blue'}
+            };
+            let trace2 = {
+                x: ids, y: vs, name: 'V (Utara-Selatan)', type: 'bar', marker: {color: 'green'}
+            };
+
+            let layout = {
+                title: 'Komponen Angin per Sensor',
+                barmode: 'group',
+                margin: { t: 40, b: 40, l: 40, r: 10 }
+            };
+
+            Plotly.newPlot('barChart', [trace1, trace2], layout);
+        }
+
+        // Tab Logic
+        function openTab(tabName) {
+            let tabs = document.getElementsByClassName("tab-content");
+            for (let i = 0; i < tabs.length; i++) {
+                tabs[i].style.display = "none";
+                tabs[i].classList.remove("active");
+            }
+            document.getElementById(tabName).style.display = "block";
+            document.getElementById(tabName).classList.add("active");
+            
+            let btns = document.getElementsByClassName("tab-btn");
+            for(let btn of btns) {
+                btn.classList.remove("active");
+            }
+            event.target.classList.add("active");
+        }
+    </script>
 </body>
 </html>
